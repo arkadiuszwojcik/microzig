@@ -30,7 +30,8 @@ pub const Usb = usb.Usb(F);
 
 pub const DeviceConfiguration = usb.DeviceConfiguration;
 pub const DeviceDescriptor = usb.DeviceDescriptor;
-pub const DescType = usb.DescType;
+pub const DescType = usb.descriptors.DescType;
+pub const InterfaceAssociationDescriptor = usb.InterfaceAssociationDescriptor;
 pub const InterfaceDescriptor = usb.InterfaceDescriptor;
 pub const ConfigurationDescriptor = usb.ConfigurationDescriptor;
 pub const EndpointDescriptor = usb.EndpointDescriptor;
@@ -42,7 +43,7 @@ pub const utf8ToUtf16Le = usb.utf8Toutf16Le;
 
 pub var EP0_OUT_CFG: usb.EndpointConfiguration = .{
     .descriptor = &usb.EndpointDescriptor{
-        .descriptor_type = usb.DescType.Endpoint,
+        .descriptor_type = DescType.Endpoint,
         .endpoint_address = usb.EP0_OUT_ADDR,
         .attributes = @intFromEnum(usb.TransferType.Control),
         .max_packet_size = 64,
@@ -56,7 +57,7 @@ pub var EP0_OUT_CFG: usb.EndpointConfiguration = .{
 
 pub var EP0_IN_CFG: usb.EndpointConfiguration = .{
     .descriptor = &usb.EndpointDescriptor{
-        .descriptor_type = usb.DescType.Endpoint,
+        .descriptor_type = DescType.Endpoint,
         .endpoint_address = usb.EP0_IN_ADDR,
         .attributes = @intFromEnum(usb.TransferType.Control),
         .max_packet_size = 64,

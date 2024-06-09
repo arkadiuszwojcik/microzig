@@ -12,9 +12,14 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+pub const descriptors = @import("usb/descriptors.zig");
 
 /// USB Human Interface Device (HID)
 pub const hid = @import("usb/hid.zig");
+// USB Communications Device Class (CDC)
+pub const cdc = @import("usb/cdc.zig");
+
+const DescType = descriptors.DescType;
 
 /// Create a USB device
 ///
@@ -192,19 +197,25 @@ pub fn Usb(comptime f: anytype) type {
                                 // endpoint descriptors to the end, saving some
                                 // round trips.
                                 var bw = BufferWriter { .buffer = &S.tmp };
-                                try bw.write(&usb_config.?.config_descriptor.serialize());
-                                try bw.write(&usb_config.?.interface_descriptor.serialize());
 
-
-                                // Seems like the host does not bother asking for the
-                                // hid descriptor so we'll just send it with the
-                                // other descriptors.
-                                if (usb_config.?.hid) |hid_conf| {
-                                    try bw.write(&hid_conf.hid_descriptor.serialize());
+                                if (usb_config.?.config_descriptor_alternative) |config| {
+                                    try bw.write(config);
                                 }
+                                else { 
+                                    try bw.write(&usb_config.?.config_descriptor.serialize());
+                                    try bw.write(&usb_config.?.interface_descriptor.serialize());
 
-                                for (usb_config.?.endpoints[2..]) |ep| {
-                                    try bw.write(&ep.descriptor.serialize());
+
+                                    // Seems like the host does not bother asking for the
+                                    // hid descriptor so we'll just send it with the
+                                    // other descriptors.
+                                    if (usb_config.?.hid) |hid_conf| {
+                                        try bw.write(&hid_conf.hid_descriptor.serialize());
+                                    }
+
+                                    for (usb_config.?.endpoints[2..]) |ep| {
+                                        try bw.write(&ep.descriptor.serialize());
+                                    }
                                 }
 
                                 CmdEndpoint.send_cmd_response(bw.get_written_slice(), setup.length);
@@ -269,6 +280,7 @@ pub fn Usb(comptime f: anytype) type {
 
                                 CmdEndpoint.send_cmd_response(bw.get_written_slice(), setup.length);
                             },
+                            else => {}
                         }
                     } else {
                         // Maybe the unknown request type is a hid request
@@ -437,30 +449,6 @@ pub fn Usb(comptime f: anytype) type {
 //                                                 |   HID Descriptor  |
 //                                                 ---------------------
 
-/// Types of USB descriptor
-pub const DescType = enum(u8) {
-    Device = 0x01,
-    Config = 0x02,
-    String = 0x03,
-    Interface = 0x04,
-    Endpoint = 0x05,
-    DeviceQualifier = 0x06,
-    //-------- Class Specific Descriptors ----------
-    // 0x21 ...
-
-    pub fn from_u16(v: u16) ?@This() {
-        return switch (v) {
-            1 => @This().Device,
-            2 => @This().Config,
-            3 => @This().String,
-            4 => @This().Interface,
-            5 => @This().Endpoint,
-            6 => @This().DeviceQualifier,
-            else => null,
-        };
-    }
-};
-
 /// Types of transfer that can be indicated by the `attributes` field on
 /// `EndpointDescriptor`.
 pub const TransferType = enum(u2) {
@@ -569,6 +557,40 @@ pub const InterfaceDescriptor = struct {
         out[6] = self.interface_subclass;
         out[7] = self.interface_protocol;
         out[8] = self.interface_s;
+        return out;
+    }
+};
+
+pub const InterfaceAssociationDescriptor = struct {
+    // Length of this structure, must be 8.
+    length: u8,
+    // Type of this descriptor, must be `InterfaceAssociation`.
+    descriptor_type: DescType,
+    // First interface number of the set of interfaces that follow this
+    // descriptor.
+    first_interface: u8,
+    // The number of interfaces that follow this descriptor that are considered
+    // associated.
+    interface_count: u8,
+    // The interface class used for associated interfaces.
+    function_class: u8,
+    // The interface subclass used for associated interfaces.
+    function_subclass: u8,
+    // The interface protocol used for associated interfaces.
+    function_protocol: u8,
+    // Index of the string descriptor describing the associated interfaces.
+    function: u8,
+
+    pub fn serialize(self: *const @This()) [8]u8 {
+        var out: [8]u8 = undefined;
+        out[0] = out.len;
+        out[1] = @intFromEnum(self.descriptor_type);
+        out[2] = self.first_interface;
+        out[3] = self.interface_count;
+        out[4] = self.function_class;
+        out[5] = self.function_subclass;
+        out[6] = self.function_protocol;
+        out[7] = self.function;
         return out;
     }
 };
@@ -759,6 +781,7 @@ pub const DeviceConfiguration = struct {
     device_descriptor: *const DeviceDescriptor,
     interface_descriptor: *const InterfaceDescriptor,
     config_descriptor: *const ConfigurationDescriptor,
+    config_descriptor_alternative: ?[]const u8 = null,
     lang_descriptor: []const u8,
     descriptor_strings: []const []const u8,
     hid: ?struct {
