@@ -90,7 +90,7 @@ pub fn Usb(comptime f: anytype) type {
                 var started = false;
                 // Some scratch space that we'll use for things like preparing string
                 // descriptors for transmission.
-                var tmp: [128]u8 = .{0} ** 128;
+                var tmp: [192]u8 = .{0} ** 192;
                 // Keeps track of sent data from tmp buffer
                 var buffer_reader = BufferReader { .buffer = &.{} };
             };

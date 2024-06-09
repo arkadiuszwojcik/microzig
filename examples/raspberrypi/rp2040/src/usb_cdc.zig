@@ -18,7 +18,7 @@ const part0: usb.ConfigurationDescriptor = .{
     .descriptor_type = usb.DescType.Config,
     // This is calculated via the sizes of underlying descriptors contained in this configuration.
     // ConfigurationDescriptor(9) + InterfaceDescriptor(9) * 1 + EndpointDescriptor(8) * 2
-    .total_length = 9 + 66,
+    .total_length = 9 + 66 + 65, // (65 bytes of redundant data)
     .num_interfaces = 2,
     .configuration_value = 1,
     .configuration_s = 0,
@@ -199,6 +199,22 @@ pub var DEVICE_CONFIGURATION: usb.DeviceConfiguration = .{
         part1.serialize() ++ 
         part2.serialize() ++ 
         part3.serialize() ++
+
+        // Redundant data to force 3 packets
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+        part3.serialize() ++
+
         part4.serialize() ++ 
         part5.serialize() ++
         part6.serialize() ++
