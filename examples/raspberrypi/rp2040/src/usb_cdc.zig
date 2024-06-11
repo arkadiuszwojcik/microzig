@@ -28,15 +28,7 @@ var usb_config = [_]usb.ConfigEntry {
     .{ .endpoint = &.{ .descriptor_type = .Endpoint, .endpoint_address = 0x82, .attributes = 2, .max_packet_size = 64, .interval = 0 } },
 };
 
-const part0: usb.ConfigurationDescriptor = .{ .descriptor_type = usb.DescType.Config, .total_length = 9 + 66, .num_interfaces = 2, .configuration_value = 1, .configuration_s = 0, .attributes = 0xc0, .max_power = 0x32, };
-const part1: usb.InterfaceAssociationDescriptor = .{ .length = @sizeOf(@This()), .descriptor_type = .InterfaceAssociation, .first_interface = 0, .interface_count = 2, .function_class = 2, .function_subclass = 2, .function_protocol = 0, .function = 0 };
-const part2: usb.InterfaceDescriptor = .{ .descriptor_type = .Interface, .interface_number = 0, .alternate_setting = 0, .num_endpoints = 1, .interface_class = 2, .interface_subclass = 2, .interface_protocol = 0, .interface_s = 3 };
-const part3: microzig.core.usb.cdc.CdcHeader = .{ .descriptor_type = .CsInterface, .descriptor_subtype = .Header, .bcd_cdc = 0x0120 };
-const part4: microzig.core.usb.cdc.CdcCallManagement = .{ .descriptor_type = .CsInterface, .descriptor_subtype = .CallManagement, .capabilities = 0, .data_interface = 0 + 1 };
-const part5: microzig.core.usb.cdc.CdcAcm = .{ .descriptor_type = .CsInterface, .descriptor_subtype = .ACM, .capabilities = 6, };
-const part6: microzig.core.usb.cdc.CdcUnion = .{ .descriptor_type = .CsInterface, .descriptor_subtype = .Union, .master_interface = 0, .slave_interface_0 = 0 + 1 };
-const part7: microzig.core.usb.EndpointDescriptor = .{ .descriptor_type = .Endpoint, .endpoint_address = 0x81, .attributes = 3, .max_packet_size = 8, .interval = 16 };
-const part8: microzig.core.usb.InterfaceDescriptor = .{ .descriptor_type = .Interface, .interface_number = 0 + 1, .alternate_setting = 0, .num_endpoints = 2, .interface_class = 10, .interface_subclass = 0, .interface_protocol = 0, .interface_s = 0 };
+
 const part9: microzig.core.usb.descriptors.EndpointDescriptor = .{ .descriptor_type = .Endpoint, .endpoint_address = 0x02, .attributes = 2, .max_packet_size = 64, .interval = 0 };
 const part10: microzig.core.usb.descriptors.EndpointDescriptor = .{ .descriptor_type = .Endpoint, .endpoint_address = 0x82, .attributes = 2, .max_packet_size = 64, .interval = 0, };
 
