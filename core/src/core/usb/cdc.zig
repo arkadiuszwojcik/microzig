@@ -4,6 +4,7 @@
 // https://cscott.net/usb_dev/data/devclass/usbcdc11.pdf
 
 const std = @import("std");
+const mem = @import("../memory.zig");
 
 pub const descriptors = @import("descriptors.zig");
 const DescType = descriptors.DescType;
@@ -37,6 +38,15 @@ pub const CdcHeader = extern struct {
         out[4] = @intCast((self.bcd_cdc >> 8) & 0xff);
         return out;
     }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 5;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_subtype));
+        buff.write_int_unsafe(u16, self.bcd_cdc);
+    }
 };
 
 pub const CdcCallManagement = extern struct {
@@ -58,6 +68,16 @@ pub const CdcCallManagement = extern struct {
         out[4] = self.data_interface;
         return out;
     }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 5;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_subtype));
+        buff.write_int_unsafe(u8, self.capabilities);
+        buff.write_int_unsafe(u8, self.data_interface);
+    }
 };
 
 pub const CdcAcm = extern struct {
@@ -75,6 +95,15 @@ pub const CdcAcm = extern struct {
         out[2] = @intFromEnum(self.descriptor_subtype);
         out[3] = self.capabilities;
         return out;
+    }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 4;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_subtype));
+        buff.write_int_unsafe(u8, self.capabilities);
     }
 };
 
@@ -98,5 +127,15 @@ pub const CdcUnion = extern struct {
         out[3] = self.master_interface;
         out[4] = self.slave_interface_0;
         return out;
+    }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 5;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_subtype));
+        buff.write_int_unsafe(u8, self.master_interface);
+        buff.write_int_unsafe(u8, self.slave_interface_0);
     }
 };

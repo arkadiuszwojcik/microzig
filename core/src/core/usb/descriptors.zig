@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = @import("../memory.zig");
 
 pub const DescType = enum(u8) {
     Device = 0x01,
@@ -47,6 +48,17 @@ pub const EndpointDescriptor = struct {
         out[6] = self.interval;
         return out;
     }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 7;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u8, self.endpoint_address);
+        buff.write_int_unsafe(u8, self.attributes);
+        buff.write_int_unsafe(u16, self.max_packet_size);
+        buff.write_int_unsafe(u8, self.interval);
+    }
 };
 
 /// Description of an interface within a configuration.
@@ -83,6 +95,20 @@ pub const InterfaceDescriptor = struct {
         out[8] = self.interface_s;
         return out;
     }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 9;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u8, self.interface_number);
+        buff.write_int_unsafe(u8, self.alternate_settings);
+        buff.write_int_unsafe(u8, self.num_endpoints);
+        buff.write_int_unsafe(u8, self.interface_class);
+        buff.write_int_unsafe(u8, self.interface_subclass);
+        buff.write_int_unsafe(u8, self.interface_protocol);
+        buff.write_int_unsafe(u8, self.interface_s);
+    }
 };
 
 pub const InterfaceAssociationDescriptor = struct {
@@ -116,6 +142,19 @@ pub const InterfaceAssociationDescriptor = struct {
         out[6] = self.function_protocol;
         out[7] = self.function;
         return out;
+    }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 8;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u8, self.first_interface);
+        buff.write_int_unsafe(u8, self.interface_count);
+        buff.write_int_unsafe(u8, self.function_class);
+        buff.write_int_unsafe(u8, self.function_subclass);
+        buff.write_int_unsafe(u8, self.function_protocol);
+        buff.write_int_unsafe(u8, self.function);
     }
 };
 
@@ -158,6 +197,19 @@ pub const ConfigurationDescriptor = struct {
         out[7] = self.attributes;
         out[8] = self.max_power;
         return out;
+    }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 9;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u16, self.total_length);
+        buff.write_int_unsafe(u8, self.num_interfaces);
+        buff.write_int_unsafe(u8, self.configuration_value);
+        buff.write_int_unsafe(u8, self.configuration_s);
+        buff.write_int_unsafe(u8, self.attributes);
+        buff.write_int_unsafe(u8, self.max_power);
     }
 };
 
@@ -214,6 +266,25 @@ pub const DeviceDescriptor = struct {
         out[17] = self.num_configurations;
         return out;
     }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 18;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u16, self.bcd_usb);
+        buff.write_int_unsafe(u8, self.device_class);
+        buff.write_int_unsafe(u8, self.device_subclass);
+        buff.write_int_unsafe(u8, self.device_protocol);
+        buff.write_int_unsafe(u8, self.max_packet_size0);
+        buff.write_int_unsafe(u16, @intFromEnum(self.vendor));
+        buff.write_int_unsafe(u16, @intFromEnum(self.product));
+        buff.write_int_unsafe(u16, @intFromEnum(self.bcd_device));
+        buff.write_int_unsafe(u8, self.manufacturer_s);
+        buff.write_int_unsafe(u8, self.product_s);
+        buff.write_int_unsafe(u8, self.serial_s);
+        buff.write_int_unsafe(u8, self.num_configurations);
+    }
 };
 
 /// USB Device Qualifier Descriptor
@@ -250,5 +321,19 @@ pub const DeviceQualifierDescriptor = struct {
         out[8] = self.num_configurations;
         out[9] = self.reserved;
         return out;
+    }
+
+    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+        const length = 10;
+        try buff.bound_check(length);
+        buff.write_int_unsafe(u8, length);
+        buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
+        buff.write_int_unsafe(u16, self.self.bcd_usb);
+        buff.write_int_unsafe(u8, self.device_class);
+        buff.write_int_unsafe(u8, self.device_subclass);
+        buff.write_int_unsafe(u8, self.device_protocol);
+        buff.write_int_unsafe(u8, self.max_packet_size0);
+        buff.write_int_unsafe(u8, self.num_configurations);
+        buff.write_int_unsafe(u8, self.reserved);
     }
 };
