@@ -200,7 +200,9 @@ pub fn Usb(comptime f: anytype) type {
                                 // round trips.
                                 var bw = BufferWriter { .buffer = &S.tmp };
                                 if (usb_config.?.new_config) |new_config| {
-                                    try new_config.serialize_buff(&bw);
+                                    for (new_config) |config| {
+                                        try config.serialize_buff(&bw);
+                                    }
                                 }
                                 else {
                                     try bw.write(&usb_config.?.config_descriptor.serialize());
