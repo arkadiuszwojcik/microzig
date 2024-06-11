@@ -23,6 +23,19 @@ pub const DescSubType = enum(u8) {
     }
 };
 
+pub const CdcConfigEntry = union(enum) {
+    cdc_header: *const CdcHeader,
+    cdc_call_management: *const CdcCallManagement,
+    cdc_acm: *const CdcAcm,
+    cdc_union: *const CdcUnion,
+
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
+        switch (self.*) {
+            inline else => |case| try case.serialize_buff(buff),
+        }
+    }
+};
+
 pub const CdcHeader = extern struct {
     // Type of this descriptor, must be `ClassSpecific`.
     descriptor_type: DescType,

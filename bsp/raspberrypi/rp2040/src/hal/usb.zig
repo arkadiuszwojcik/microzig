@@ -31,6 +31,7 @@ pub const Usb = usb.Usb(F);
 pub const DeviceConfiguration = usb.DeviceConfiguration;
 pub const DeviceDescriptor = usb.descriptors.DeviceDescriptor;
 pub const DescType = usb.descriptors.DescType;
+pub const ConfigEntry = usb.ConfigEntry;
 pub const InterfaceAssociationDescriptor = usb.descriptors.InterfaceAssociationDescriptor;
 pub const InterfaceDescriptor = usb.descriptors.InterfaceDescriptor;
 pub const ConfigurationDescriptor = usb.descriptors.ConfigurationDescriptor;

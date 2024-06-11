@@ -186,7 +186,7 @@ pub fn Usb(comptime f: anytype) type {
                                 usb_config.?.endpoints[EP0_IN_IDX].next_pid_1 = true;
 
                                 var bw = BufferWriter { .buffer = &S.tmp };
-                                try bw.write(&usb_config.?.device_descriptor.serialize());
+                                try usb_config.?.device_descriptor.serialize_buff(&bw);
 
                                 CmdEndpoint.send_cmd_response(bw.get_written_slice(), setup.length);
                             },
@@ -199,19 +199,24 @@ pub fn Usb(comptime f: anytype) type {
                                 // endpoint descriptors to the end, saving some
                                 // round trips.
                                 var bw = BufferWriter { .buffer = &S.tmp };
-                                try bw.write(&usb_config.?.config_descriptor.serialize());
-                                try bw.write(&usb_config.?.interface_descriptor.serialize());
-
-
-                                // Seems like the host does not bother asking for the
-                                // hid descriptor so we'll just send it with the
-                                // other descriptors.
-                                if (usb_config.?.hid) |hid_conf| {
-                                    try bw.write(&hid_conf.hid_descriptor.serialize());
+                                if (usb_config.?.new_config) |new_config| {
+                                    try new_config.serialize_buff(&bw);
                                 }
+                                else {
+                                    try bw.write(&usb_config.?.config_descriptor.serialize());
+                                    try bw.write(&usb_config.?.interface_descriptor.serialize());
 
-                                for (usb_config.?.endpoints[2..]) |ep| {
-                                    try bw.write(&ep.descriptor.serialize());
+
+                                    // Seems like the host does not bother asking for the
+                                    // hid descriptor so we'll just send it with the
+                                    // other descriptors.
+                                    if (usb_config.?.hid) |hid_conf| {
+                                        try bw.write(&hid_conf.hid_descriptor.serialize());
+                                    }
+
+                                    for (usb_config.?.endpoints[2..]) |ep| {
+                                        try bw.write(&ep.descriptor.serialize());
+                                    }
                                 }
 
                                 CmdEndpoint.send_cmd_response(bw.get_written_slice(), setup.length);
@@ -538,12 +543,32 @@ pub const EndpointConfiguration = struct {
     /// Optional callback for custom OUT endpoints. This function will be called
     /// if the device receives data on the corresponding endpoint.
     callback: ?*const fn (dc: *DeviceConfiguration, data: []const u8) void = null,
+
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
+        try self.descriptor.serialize_buff(buff);
+    }
+};
+
+pub const ConfigEntry = union(enum) {
+    configuration: *const descriptors.ConfigurationDescriptor,
+    endpoint_conf: *const EndpointConfiguration,
+    endpoint: *const descriptors.EndpointDescriptor,
+    interface: *const descriptors.InterfaceDescriptor,
+    interface_association: *const descriptors.InterfaceAssociationDescriptor,
+    cdc: *const cdc.CdcConfigEntry,
+
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
+        switch (self.*) {
+            inline else => |case| try case.serialize_buff(buff),
+        }
+    }
 };
 
 pub const DeviceConfiguration = struct {
     device_descriptor: *const descriptors.DeviceDescriptor,
     interface_descriptor: *const descriptors.InterfaceDescriptor,
     config_descriptor: *const descriptors.ConfigurationDescriptor,
+    new_config: ?[]const ConfigEntry = null,
     lang_descriptor: []const u8,
     descriptor_strings: []const []const u8,
     hid: ?struct {

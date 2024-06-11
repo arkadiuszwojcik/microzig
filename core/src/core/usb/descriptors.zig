@@ -105,7 +105,7 @@ pub const InterfaceDescriptor = struct {
         buff.write_int_unsafe(u8, length);
         buff.write_int_unsafe(u8, @intFromEnum(self.descriptor_type));
         buff.write_int_unsafe(u8, self.interface_number);
-        buff.write_int_unsafe(u8, self.alternate_settings);
+        buff.write_int_unsafe(u8, self.alternate_setting);
         buff.write_int_unsafe(u8, self.num_endpoints);
         buff.write_int_unsafe(u8, self.interface_class);
         buff.write_int_unsafe(u8, self.interface_subclass);
