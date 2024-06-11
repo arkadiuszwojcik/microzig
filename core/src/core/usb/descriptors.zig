@@ -280,9 +280,9 @@ pub const DeviceDescriptor = struct {
         buff.write_int_unsafe(u8, self.device_subclass);
         buff.write_int_unsafe(u8, self.device_protocol);
         buff.write_int_unsafe(u8, self.max_packet_size0);
-        buff.write_int_unsafe(u16, @intFromEnum(self.vendor));
-        buff.write_int_unsafe(u16, @intFromEnum(self.product));
-        buff.write_int_unsafe(u16, @intFromEnum(self.bcd_device));
+        buff.write_int_unsafe(u16, self.vendor);
+        buff.write_int_unsafe(u16, self.product);
+        buff.write_int_unsafe(u16, self.bcd_device);
         buff.write_int_unsafe(u8, self.manufacturer_s);
         buff.write_int_unsafe(u8, self.product_s);
         buff.write_int_unsafe(u8, self.serial_s);
