@@ -1,5 +1,8 @@
 const std = @import("std");
-const mem = @import("../memory.zig");
+const buffers = @import("../buffers.zig");
+
+const BufferReader = buffers.BufferReader;
+const BufferWriter = buffers.BufferWriter;
 
 pub const DescType = enum(u8) {
     Device = 0x01,
@@ -49,7 +52,7 @@ pub const EndpointDescriptor = struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 7;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
@@ -96,7 +99,7 @@ pub const InterfaceDescriptor = struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 9;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
@@ -144,7 +147,7 @@ pub const InterfaceAssociationDescriptor = struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 8;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
@@ -199,7 +202,7 @@ pub const ConfigurationDescriptor = struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 9;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
@@ -267,7 +270,7 @@ pub const DeviceDescriptor = struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 18;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
@@ -323,7 +326,7 @@ pub const DeviceQualifierDescriptor = struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 10;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);

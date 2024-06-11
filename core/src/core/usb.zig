@@ -11,7 +11,7 @@
 //! 5. Call `usb.task()` within the main loop
 
 const std = @import("std");
-const mem = @import("memory.zig");
+const buffers = @import("buffers.zig");
 
 pub const descriptors = @import("usb/descriptors.zig");
 /// USB Human Interface Device (HID)
@@ -19,6 +19,8 @@ pub const hid = @import("usb/hid.zig");
 /// USB Communications Device Class (CDC)
 pub const cdc = @import("usb/cdc.zig");
 
+const BufferReader = buffers.BufferReader;
+const BufferWriter = buffers.BufferWriter;
 const DescType = descriptors.DescType;
 
 /// Create a USB device
@@ -92,7 +94,7 @@ pub fn Usb(comptime f: anytype) type {
                 // descriptors for transmission.
                 var tmp: [128]u8 = .{0} ** 128;
                 // Keeps track of sent data from tmp buffer
-                var buffer_reader = mem.BufferReader { .buffer = &.{} };
+                var buffer_reader = BufferReader { .buffer = &.{} };
             };
             
             // Command endpoint utilities
@@ -102,7 +104,7 @@ pub fn Usb(comptime f: anytype) type {
                 fn send_cmd_response(data: []const u8, expected_max_length: u16) void {
                     const cmd_in_endpoint = usb_config.?.endpoints[EP0_IN_IDX];
 
-                    S.buffer_reader = mem.BufferReader { .buffer = data[0..@min(data.len, expected_max_length)] };
+                    S.buffer_reader = BufferReader { .buffer = data[0..@min(data.len, expected_max_length)] };
                     const data_chunk = S.buffer_reader.try_peek(cmd_in_endpoint.descriptor.max_packet_size);
 
                     if (data_chunk.len > 0) {
@@ -183,7 +185,7 @@ pub fn Usb(comptime f: anytype) type {
                                 // implementation.
                                 usb_config.?.endpoints[EP0_IN_IDX].next_pid_1 = true;
 
-                                var bw = mem.BufferWriter { .buffer = &S.tmp };
+                                var bw = BufferWriter { .buffer = &S.tmp };
                                 try bw.write(&usb_config.?.device_descriptor.serialize());
 
                                 CmdEndpoint.send_cmd_response(bw.get_written_slice(), setup.length);
@@ -196,7 +198,7 @@ pub fn Usb(comptime f: anytype) type {
                                 // but we can _also_ append our interface and
                                 // endpoint descriptors to the end, saving some
                                 // round trips.
-                                var bw = mem.BufferWriter { .buffer = &S.tmp };
+                                var bw = BufferWriter { .buffer = &S.tmp };
                                 try bw.write(&usb_config.?.config_descriptor.serialize());
                                 try bw.write(&usb_config.?.interface_descriptor.serialize());
 
@@ -229,7 +231,7 @@ pub fn Usb(comptime f: anytype) type {
                                         const s = usb_config.?.descriptor_strings[i - 1];
                                         const len = 2 + s.len;
 
-                                        var wb = mem.BufferWriter { .buffer = &S.tmp };
+                                        var wb = BufferWriter { .buffer = &S.tmp };
                                         try wb.write_int(u8, @intCast(len));
                                         try wb.write_int(u8, 0x03);
                                         try wb.write(s);
@@ -269,7 +271,7 @@ pub fn Usb(comptime f: anytype) type {
                                     .num_configurations = usb_config.?.device_descriptor.num_configurations,
                                 };
 
-                                var bw = mem.BufferWriter { .buffer = &S.tmp };
+                                var bw = BufferWriter { .buffer = &S.tmp };
                                 try bw.write(&dqd.serialize());
 
                                 CmdEndpoint.send_cmd_response(bw.get_written_slice(), setup.length);
@@ -287,7 +289,7 @@ pub fn Usb(comptime f: anytype) type {
                                     .Hid => {
                                         if (debug) std.log.info("        HID", .{});
 
-                                        var bw = mem.BufferWriter { .buffer = &S.tmp };
+                                        var bw = BufferWriter { .buffer = &S.tmp };
                                         try bw.write(&hid_conf.hid_descriptor.serialize());
 
                                         CmdEndpoint.send_cmd_response(bw.get_written_slice(), setup.length);
@@ -396,7 +398,7 @@ pub fn Usb(comptime f: anytype) type {
                 S.new_address = null;
                 S.configured = false;
                 S.started = false;
-                S.buffer_reader = mem.BufferReader { .buffer = &.{} };
+                S.buffer_reader = BufferReader { .buffer = &.{} };
             }
 
             // If we have been configured but haven't reached this point yet, set up

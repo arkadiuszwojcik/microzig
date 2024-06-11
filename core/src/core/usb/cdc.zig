@@ -4,9 +4,12 @@
 // https://cscott.net/usb_dev/data/devclass/usbcdc11.pdf
 
 const std = @import("std");
-const mem = @import("../memory.zig");
+const buffers = @import("../buffers.zig");
 
 pub const descriptors = @import("descriptors.zig");
+
+const BufferReader = buffers.BufferReader;
+const BufferWriter = buffers.BufferWriter;
 const DescType = descriptors.DescType;
 
 pub const DescSubType = enum(u8) {
@@ -39,7 +42,7 @@ pub const CdcHeader = extern struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 5;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
@@ -69,7 +72,7 @@ pub const CdcCallManagement = extern struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 5;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
@@ -97,7 +100,7 @@ pub const CdcAcm = extern struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 4;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
@@ -129,7 +132,7 @@ pub const CdcUnion = extern struct {
         return out;
     }
 
-    pub fn serialize_buff(self: *const @This(), buff: *mem.BufferWriter) mem.BufferWriter.Error!void {
+    pub fn serialize_buff(self: *const @This(), buff: *BufferWriter) BufferWriter.Error!void {
         const length = 5;
         try buff.bound_check(length);
         buff.write_int_unsafe(u8, length);
