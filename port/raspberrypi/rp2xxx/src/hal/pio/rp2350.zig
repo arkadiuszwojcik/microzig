@@ -9,6 +9,9 @@ const gpio = @import("../gpio.zig");
 const resets = @import("../resets.zig");
 const hw = @import("../hw.zig");
 
+const encoder = @import("assembler/encoder.zig");
+pub const Instruction = encoder.Instruction;
+
 const PIO2 = microzig.chip.peripherals.PIO2;
 
 pub const Pio = enum(u2) {
@@ -115,4 +118,62 @@ pub const Pio = enum(u2) {
     pub const sm_init = PioImpl.sm_init;
     pub const sm_exec = PioImpl.sm_exec;
     pub const sm_load_and_start_program = PioImpl.sm_load_and_start_program;
+
+    pub fn sm_set_x(self: Pio, sm: common.StateMachine, value: u32) void {
+        const inst = Instruction(.RP2350) { 
+            .tag = .out,
+            .delay_side_set = 0,
+            .payload = .{ 
+                .out = .{ 
+                    .destination = .x,
+                    .bit_count = 32 
+                }
+            }
+        };
+        sm_write(self, sm, value);
+        sm_exec(self, sm, inst);
+    }
+
+    pub fn sm_exec_set_y(self: Pio, sm: common.StateMachine, value: u32) void {
+        const inst = Instruction(.RP2350) { 
+            .tag = .out,
+            .delay_side_set = 0,
+            .payload = .{ 
+                .out = .{ 
+                    .destination = .y,
+                    .bit_count = 32 
+                }
+            }
+        };
+        sm_write(self, sm, value);
+        sm_exec(self, sm, inst);
+    }
+
+    pub fn sm_exec_set_pindir(self: Pio, sm: common.StateMachine, data: u8) void {
+        const inst = Instruction(.RP2350) { 
+            .tag = .set,
+            .delay_side_set = 0,
+            .payload = .{ 
+                .set = .{
+                    .data = data,
+                    .destination = .pindirs,
+                }
+            }
+        };
+        sm_exec(self, sm, inst);
+    }
+
+    pub fn sm_exec_jmp(self: Pio, sm: common.StateMachine, to_addr: u5) void {
+        const inst = Instruction(.RP2350) { 
+            .tag = .jmp,
+            .delay_side_set = 0,
+            .payload = .{ 
+                .jmp  = .{
+                    .address = to_addr,
+                    .condition = .always
+                }
+            }
+        };
+        sm_exec(self, sm, inst);
+    }
 };

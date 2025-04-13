@@ -14,15 +14,15 @@ pub fn build(b: *std.Build) void {
 
     const rp2040_only_examples: []const Example = &.{
         // RaspberryPi Boards:
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_flash-program", .file = "src/rp2040_only/flash_program.zig" },
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_flash-id", .file = "src/rp2040_only/flash_id.zig" },
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_random", .file = "src/rp2040_only/random.zig" },
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_rtc", .file = "src/rp2040_only/rtc.zig" },
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_usb-hid", .file = "src/rp2040_only/usb_hid.zig" },
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_multicore", .file = "src/rp2040_only/blinky_core1.zig" },
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_hd44780", .file = "src/rp2040_only/hd44780.zig" },
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_pcf8574", .file = "src/rp2040_only/pcf8574.zig" },
-        .{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_i2c_slave", .file = "src/rp2040_only/i2c_slave.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_flash-program", .file = "src/rp2040_only/flash_program.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_flash-id", .file = "src/rp2040_only/flash_id.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_random", .file = "src/rp2040_only/random.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_rtc", .file = "src/rp2040_only/rtc.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_usb-hid", .file = "src/rp2040_only/usb_hid.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_multicore", .file = "src/rp2040_only/blinky_core1.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_hd44780", .file = "src/rp2040_only/hd44780.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_pcf8574", .file = "src/rp2040_only/pcf8574.zig" },
+        //.{ .target = mb.ports.rp2xxx.boards.raspberrypi.pico, .name = "pico_i2c_slave", .file = "src/rp2040_only/i2c_slave.zig" },
 
         // WaveShare Boards:
         .{ .target = mb.ports.rp2xxx.boards.waveshare.rp2040_matrix, .name = "rp2040-matrix_tiles", .file = "src/rp2040_only/tiles.zig" },
@@ -36,34 +36,35 @@ pub fn build(b: *std.Build) void {
     };
 
     const chip_agnostic_examples: []const ChipAgnosticExample = &.{
-        .{ .name = "adc", .file = "src/adc.zig" },
-        .{ .name = "i2c-bus-scan", .file = "src/i2c_bus_scan.zig" },
-        .{ .name = "pwm", .file = "src/pwm.zig" },
-        .{ .name = "uart-echo", .file = "src/uart_echo.zig" },
+        //.{ .name = "adc", .file = "src/adc.zig" },
+        //.{ .name = "i2c-bus-scan", .file = "src/i2c_bus_scan.zig" },
+        //.{ .name = "pwm", .file = "src/pwm.zig" },
+        //.{ .name = "uart-echo", .file = "src/uart_echo.zig" },
         .{ .name = "uart-log", .file = "src/uart_log.zig" },
-        .{ .name = "spi-master", .file = "src/spi_master.zig" },
-        .{ .name = "spi-slave", .file = "src/spi_slave.zig" },
-        .{ .name = "squarewave", .file = "src/squarewave.zig" },
-        .{ .name = "ws2812", .file = "src/ws2812.zig" },
-        .{ .name = "blinky", .file = "src/blinky.zig" },
-        .{ .name = "gpio-clock-output", .file = "src/gpio_clock_output.zig" },
-        .{ .name = "changing-system-clocks", .file = "src/changing_system_clocks.zig" },
-        .{ .name = "custom-clock-config", .file = "src/custom_clock_config.zig" },
-        .{ .name = "watchdog-timer", .file = "src/watchdog_timer.zig" },
-        .{ .name = "interrupts", .file = "src/interrupts.zig" },
-        .{ .name = "stepper", .file = "src/stepper.zig" },
-        .{ .name = "usb-cdc", .file = "src/usb_cdc.zig" },
+        //.{ .name = "spi-master", .file = "src/spi_master.zig" },
+        //.{ .name = "spi-slave", .file = "src/spi_slave.zig" },
+        //.{ .name = "squarewave", .file = "src/squarewave.zig" },
+        //.{ .name = "ws2812", .file = "src/ws2812.zig" },
+        //.{ .name = "blinky", .file = "src/blinky.zig" },
+        //.{ .name = "gpio-clock-output", .file = "src/gpio_clock_output.zig" },
+        //.{ .name = "changing-system-clocks", .file = "src/changing_system_clocks.zig" },
+        //.{ .name = "custom-clock-config", .file = "src/custom_clock_config.zig" },
+        //.{ .name = "watchdog-timer", .file = "src/watchdog_timer.zig" },
+        //.{ .name = "interrupts", .file = "src/interrupts.zig" },
+        //.{ .name = "stepper", .file = "src/stepper.zig" },
+        //.{ .name = "usb-cdc", .file = "src/usb_cdc.zig" },
+        .{ .name = "wifi", .file = "src/wifi.zig" },
     };
 
     var available_examples = std.ArrayList(Example).init(b.allocator);
     available_examples.appendSlice(rp2040_only_examples) catch @panic("out of memory");
     available_examples.appendSlice(rp2350_only_examples) catch @panic("out of memory");
     for (chip_agnostic_examples) |example| {
-        available_examples.append(.{
-            .target = mb.ports.rp2xxx.boards.raspberrypi.pico,
-            .name = b.fmt("pico_{s}", .{example.name}),
-            .file = example.file,
-        }) catch @panic("out of memory");
+        //available_examples.append(.{
+        //    .target = mb.ports.rp2xxx.boards.raspberrypi.pico,
+        //    .name = b.fmt("pico_{s}", .{example.name}),
+        //    .file = example.file,
+        //}) catch @panic("out of memory");
 
         available_examples.append(.{
             .target = mb.ports.rp2xxx.boards.raspberrypi.pico2_arm,
@@ -71,11 +72,11 @@ pub fn build(b: *std.Build) void {
             .file = example.file,
         }) catch @panic("out of memory");
 
-        available_examples.append(.{
-            .target = mb.ports.rp2xxx.boards.raspberrypi.pico2_riscv,
-            .name = b.fmt("pico2_riscv_{s}", .{example.name}),
-            .file = example.file,
-        }) catch @panic("out of memory");
+        //available_examples.append(.{
+        //    .target = mb.ports.rp2xxx.boards.raspberrypi.pico2_riscv,
+        //    .name = b.fmt("pico2_riscv_{s}", .{example.name}),
+        //    .file = example.file,
+        //}) catch @panic("out of memory");
     }
 
     for (available_examples.items) |example| {

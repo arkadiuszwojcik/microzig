@@ -47,6 +47,7 @@ pub const IO_expander = struct {
 
 pub const wireless = struct {
     // pub const sx1278 = @import("wireless/sx1278.zig");
+    pub const cyw43 = @import("wireless/cyw43/bus.zig");
 };
 
 pub const time = struct {
