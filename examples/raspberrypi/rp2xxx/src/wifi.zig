@@ -1,6 +1,6 @@
 const std = @import("std");
 const microzig = @import("microzig");
-const SPI_Device =  microzig.hal.drivers.SPI_Device;
+const SPI_Device = microzig.hal.drivers.SPI_Device;
 const GPIO_Device = microzig.hal.drivers.GPIO_Device;
 const wifi = microzig.drivers.wireless.cyw43;
 
@@ -55,7 +55,9 @@ pub fn main() !void {
     var spi_device: SPI_Device = SPI_Device.init(spi1, rp2xxx.gpio.num(25), .{ .active_level = .low });
     try spi_device.connect();
 
-    var spi_cyw43: SpiBusCyw43 = SpiBusCyw43.init(&spi_device);
+    //var spi_cyw43: SpiBusCyw43 = SpiBusCyw43.init(&spi_device);
+    var spi_cyw43: Cyw43PioSpi = .{};
+    spi_cyw43.init();
     var power_pin: GPIO_Device = GPIO_Device.init(rp2xxx.gpio.num(23));
     var wifi_bus = wifi.Bus.init(power_pin.digital_io(), spi_cyw43.spi_bus_cyw43(), sleep);
 
@@ -73,47 +75,47 @@ pub fn main() !void {
 
 const Cyw43PioSpi = struct {
     const Self = @This();
-    const pio: rp2xxx.pio.Pio = rp2xxx.pio.num(0);
-    sm: rp2xxx.pio.StateMachine,
-    io_pin: rp2xxx.gpio.num(0),
-    clk_pin: rp2xxx.gpio.num(0),
+    pio: rp2xxx.pio.Pio = rp2xxx.pio.num(0),
+    sm: rp2xxx.pio.StateMachine = .sm0,
+    io_pin: rp2xxx.gpio.Pin = rp2xxx.gpio.num(0),
+    clk_pin: rp2xxx.gpio.Pin = rp2xxx.gpio.num(0),
 
     const cw49spi_program = blk: {
-            @setEvalBranchQuota(5000);
-            break :blk rp2xxx.pio.assemble(
-                \\.program cw49spi
-                \\.side_set 1
-                \\
-                \\.wrap_target
-                \\
-                \\; write out x-1 bits
-                \\lp:
-                \\out pins, 1    side 0
-                \\jmp x-- lp     side 1
-                \\
-                \\; switch directions
-                \\lp2:
-                \\in pins, 1     side 1
-                \\jmp y-- lp2    side 0
-                \\
-                \\; wait for event and irq host
-                \\wait 1 pin 0   side 0
-                \\irq 0          side 0
-                \\
-                \\.wrap
-            , .{}).get_program_by_name("cw49spi");
-        };
+        @setEvalBranchQuota(5000);
+        break :blk rp2xxx.pio.assemble(
+            \\.program cw49spi
+            \\.side_set 1
+            \\
+            \\.wrap_target
+            \\
+            \\; write out x-1 bits
+            \\lp:
+            \\out pins, 1    side 0
+            \\jmp x-- lp     side 1
+            \\
+            \\; switch directions
+            \\lp2:
+            \\in pins, 1     side 1
+            \\jmp y-- lp2    side 0
+            \\
+            \\; wait for event and irq host
+            \\wait 1 pin 0   side 0
+            \\irq 0          side 0
+            \\
+            \\.wrap
+        , .{}).get_program_by_name("cw49spi");
+    };
 
-    fn init(this: *Self) void {
+    pub fn init(this: *Self) void {
         this.io_pin.set_function(.pio0);
-        this.io_pin.set_pull(.disable);
+        this.io_pin.set_pull(.disabled);
         this.io_pin.set_schmitt_trigger(.enabled);
         //pin_io.set_input_sync_bypass(true);
-        //pin_io.set_drive_strength(Drive::_12mA);
+        this.io_pin.set_drive_strength(.@"12mA");
         this.io_pin.set_slew_rate(.fast);
 
         this.clk_pin.set_function(.pio0);
-        //pin_io.set_drive_strength(Drive::_12mA);
+        this.clk_pin.set_drive_strength(.@"12mA");
         this.clk_pin.set_slew_rate(.fast);
     }
 
@@ -124,25 +126,37 @@ const Cyw43PioSpi = struct {
         const write_bits = 31;
         const read_bits = buffer.len * 32 + 32 - 1;
 
-        this.sm.sm_exec_set_y(read_bits);
-        this.sm.sm_exec_set_x(write_bits);
-        this.sm.sm_exec_set_pindir(0b1);
-        this.sm.sm_exec_jmp(cw49spi_program.wrap_target.?);
-        
+        this.pio.sm_exec_set_y(this.sm, read_bits);
+        this.pio.sm_exec_set_x(this.sm, write_bits);
+        this.pio.sm_exec_set_pindir(this.sm, 0b1);
+        this.pio.sm_exec_jmp(this.sm, cw49spi_program.wrap_target.?);
+
         this.pio.sm_set_enabled(this.sm, true);
 
         const dma = rp2xxx.dma.channel(1);
-        dma.claim();
-        defer dma.unclaim();
+        //dma.claim();
+        //defer dma.unclaim();
 
-        const cmd_data = std.mem.sliceAsBytes(cmd);
-        dma.trigger_transfer(this.sm.sm_get_tx_fifo(), cmd_data.ptr, 1, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = true, .write_increment = false, .dreq = @enumFromInt(@intFromEnum(this.pio) * 8 + @intFromEnum(this.sm)) });
-        dma.trigger_transfer(this.sm.sm_get_rx_fifo(), buffer.ptr, buffer.len, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * 8 + @intFromEnum(this.sm) + 4) });
+        const cmd_data = std.mem.sliceAsBytes(&cmd);
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_tx_fifo(this.sm)), @intFromPtr(cmd_data.ptr), 1, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = true, .write_increment = false, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm)) });
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(buffer.ptr), buffer.len, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
         var status: u32 = 0;
         var status_data = std.mem.sliceAsBytes(status);
-        dma.trigger_transfer(this.sm.sm_get_rx_fifo(), status_data.ptr, buffer.len, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * 8 + @intFromEnum(this.sm) + 4) });
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(status_data.ptr), buffer.len, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
 
         return status;
+    }
+
+    fn cmd_write(_: *anyopaque, _: []const u32) u32 {
+        return 0;
+    }
+
+    pub fn spi_bus_cyw43(spi: *Self) wifi.SpiBusCyw43 {
+        return .{
+            .ptr = spi,
+            .fn_cmd_write = cmd_write,
+            .fn_cmd_read = cmd_read,
+        };
     }
 };
 
@@ -184,5 +198,4 @@ const SpiBusCyw43 = struct {
     }
 };
 
-const WifiDevice = struct {
-};
+const WifiDevice = struct {};
