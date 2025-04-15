@@ -78,8 +78,10 @@ pub const Bus = struct {
         const tes = bus.read32_swapped(.bus, REG_BUS_TEST_RO);
         std.log.info("before while {}", .{tes});
         while (true) {
-            if (bus.read32_swapped(.bus, REG_BUS_TEST_RO) == FEEDBEAD)
+            const r_val = bus.read32_swapped(.bus, REG_BUS_TEST_RO);
+            if (r_val == FEEDBEAD)
                 break;
+            std.log.info("bla bla 0x{X}", .{r_val});
             bus.internal_delay_ms(550);
         }
         std.log.info("after while", .{});

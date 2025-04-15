@@ -49,11 +49,11 @@ pub fn main() !void {
 
     rp2xxx.uart.init_logger(uart);
 
-    const spi1 = rp2xxx.spi.instance.SPI1;
-    try spi1.apply(.{ .clock_config = rp2xxx.clock_config });
+    //const spi1 = rp2xxx.spi.instance.SPI1;
+    //try spi1.apply(.{ .clock_config = rp2xxx.clock_config });
 
-    var spi_device: SPI_Device = SPI_Device.init(spi1, rp2xxx.gpio.num(25), .{ .active_level = .low });
-    try spi_device.connect();
+    //var spi_device: SPI_Device = SPI_Device.init(spi1, rp2xxx.gpio.num(25), .{ .active_level = .low });
+    //try spi_device.connect();
 
     //var spi_cyw43: SpiBusCyw43 = SpiBusCyw43.init(&spi_device);
     var spi_cyw43: Cyw43PioSpi = .{};
@@ -77,8 +77,9 @@ const Cyw43PioSpi = struct {
     const Self = @This();
     pio: rp2xxx.pio.Pio = rp2xxx.pio.num(0),
     sm: rp2xxx.pio.StateMachine = .sm0,
-    io_pin: rp2xxx.gpio.Pin = rp2xxx.gpio.num(0),
-    clk_pin: rp2xxx.gpio.Pin = rp2xxx.gpio.num(0),
+    io_pin: rp2xxx.gpio.Pin = rp2xxx.gpio.num(24),
+    clk_pin: rp2xxx.gpio.Pin = rp2xxx.gpio.num(29),
+    cs_pin: rp2xxx.gpio.Pin = rp2xxx.gpio.num(25),
 
     const cw49spi_program = blk: {
         @setEvalBranchQuota(5000);
@@ -106,21 +107,77 @@ const Cyw43PioSpi = struct {
         , .{}).get_program_by_name("cw49spi");
     };
 
+    const cw49spi_program_test_jump = blk: {
+        @setEvalBranchQuota(5000);
+        break :blk rp2xxx.pio.assemble(
+            \\.program cw49spi
+            \\.side_set 1
+            \\
+            \\
+            \\; write out x-1 bits
+            \\lp:
+            \\out pins, 1    side 0
+            \\jmp x-- lp     side 1
+            \\
+            \\.wrap_target
+            \\
+            \\; switch directions
+            \\lp2:
+            \\in pins, 1     side 1
+            \\jmp y-- lp2    side 0
+            \\
+            \\; wait for event and irq host
+            \\wait 1 pin 0   side 0
+            \\irq 0          side 0
+            \\
+            \\.wrap
+        , .{}).get_program_by_name("cw49spi");
+    };
+
     pub fn init(this: *Self) void {
         this.io_pin.set_function(.pio0);
         this.io_pin.set_pull(.disabled);
         this.io_pin.set_schmitt_trigger(.enabled);
+
         //pin_io.set_input_sync_bypass(true);
+        const mask = @as(u32, 1) << @truncate(@intFromEnum(this.io_pin));
+        var val = this.pio.get_regs().INPUT_SYNC_BYPASS.raw;
+        val |= mask;
+        this.pio.get_regs().INPUT_SYNC_BYPASS.raw = val;
+
         this.io_pin.set_drive_strength(.@"12mA");
         this.io_pin.set_slew_rate(.fast);
 
         this.clk_pin.set_function(.pio0);
         this.clk_pin.set_drive_strength(.@"12mA");
         this.clk_pin.set_slew_rate(.fast);
+
+        this.pio.sm_load_and_start_program(this.sm, cw49spi_program, .{
+            .clkdiv = .{ .int = 2 },
+            .pin_mappings = .{
+                .out = .{ .base = @truncate(@intFromEnum(this.io_pin)), .count = 1 },           // HACK!! but why??? with truncate
+                .set = .{ .base = @truncate(@intFromEnum(this.io_pin)), .count = 1 },           // HACK!! but why??? with truncate
+                .side_set = .{ .base = @truncate(@intFromEnum(this.clk_pin)), .count = 1 },     // HACK!! but why??? with truncate
+                .in_base = @truncate(@intFromEnum(this.io_pin)),                                // HACK!! but why??? with truncate
+            },
+            .shift = .{
+                .out_shiftdir = .left,
+                .in_shiftdir= .left,
+                .autopull = true,
+                .autopush = true,
+            },
+        }) catch unreachable;
+
+        this.pio.sm_set_pindir(this.sm, @truncate(@intFromEnum(this.clk_pin)), 1, .out);
+        this.pio.sm_set_pindir(this.sm, @truncate(@intFromEnum(this.io_pin)), 1, .out);
+
+        this.pio.sm_set_pin(this.sm, @truncate(@intFromEnum(this.clk_pin)), 1, 0);
+        this.pio.sm_set_pin(this.sm, @truncate(@intFromEnum(this.io_pin)), 1, 0);
     }
 
     fn cmd_read(selfopaque: *anyopaque, cmd: u32, buffer: []u32) u32 {
         const this: *Self = @ptrCast(@alignCast(selfopaque));
+        this.cs_pin.put(0);
         this.pio.sm_set_enabled(this.sm, false);
 
         const write_bits = 31;
@@ -130,20 +187,23 @@ const Cyw43PioSpi = struct {
         this.pio.sm_exec_set_x(this.sm, write_bits);
         this.pio.sm_exec_set_pindir(this.sm, 0b1);
         this.pio.sm_exec_jmp(this.sm, cw49spi_program.wrap_target.?);
+        std.log.info("pio prog jmp {}", .{cw49spi_program_test_jump.wrap_target.?});
 
         this.pio.sm_set_enabled(this.sm, true);
 
         const dma = rp2xxx.dma.channel(1);
-        //dma.claim();
-        //defer dma.unclaim();
 
-        const cmd_data = std.mem.sliceAsBytes(&cmd);
-        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_tx_fifo(this.sm)), @intFromPtr(cmd_data.ptr), 1, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = true, .write_increment = false, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm)) });
-        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(buffer.ptr), buffer.len, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
+        const cmd_data = std.mem.asBytes(&cmd);
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_tx_fifo(this.sm)), @intFromPtr(cmd_data.ptr), 1, .{ .data_size = .size_32, .enable = true, .read_increment = true, .write_increment = false, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm)) });
+        while (dma.is_busy()) {}
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(buffer.ptr), buffer.len, .{ .data_size = .size_32, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
+        while (dma.is_busy()) {}
         var status: u32 = 0;
-        var status_data = std.mem.sliceAsBytes(status);
-        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(status_data.ptr), buffer.len, .{ .transfer_size_bytes = 4, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
+        const status_data = std.mem.asBytes(&status);
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(status_data.ptr), buffer.len, .{ .data_size = .size_32, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
+        while (dma.is_busy()) {}
 
+        this.cs_pin.put(1);
         return status;
     }
 
