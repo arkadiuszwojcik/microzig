@@ -71,8 +71,8 @@ pub fn main() !void {
     spi_cyw43.init();
 
     // From: https://github.com/raspberrypi/pico-sdk/blob/ee68c78d0afae2b69c03ae1a72bf5cc267a2d94c/src/rp2_common/pico_cyw43_driver/cyw43_bus_pio_spi.c#L343 line 344
-    var power_pin: GPIO_Device = GPIO_Device.init(pwr_pin);
-    var wifi_bus = wifi.Bus.init(power_pin.digital_io(), spi_cyw43.spi_bus_cyw43(), sleep);
+    //var power_pin: GPIO_Device = GPIO_Device.init(pwr_pin);
+    //var wifi_bus = wifi.Bus.init(power_pin.digital_io(), spi_cyw43.spi_bus_cyw43(), sleep);
 
     var i: u32 = 0;
     while (true) : (i += 1) {
@@ -82,8 +82,26 @@ pub fn main() !void {
         time.sleep_ms(500);
 
         time.sleep_ms(8000);
-        try wifi_bus.init_bus();
+
+        //try wifi_bus.init_bus();
+
+        pwr_pin.put(0);
+        microzig.hal.time.sleep_ms(50);
+        pwr_pin.put(1);
+        microzig.hal.time.sleep_ms(250);
+        microzig.hal.time.sleep_ms(250);
+
+        const cmd = CYW43Cmd { .cmd = .read, .incr = .incremental, .func = .bus, .addr = 0x14, .len = 4 };
+        const cmd_swapped = swap16(@bitCast(cmd));
+
+        var buff = [1]u32{0};
+        const op_stat = spi_cyw43.cmd_read2(cmd_swapped, &buff);
+        std.log.info("cmd_read status: 0x{X} and buf: 0x{X}", .{op_stat, buff[0]});
     }
+}
+
+fn swap16(x: u32) u32 {
+    return x << 16 | x >> 16;
 }
 
 const Cyw43PioSpi = struct {
@@ -131,6 +149,7 @@ const Cyw43PioSpi = struct {
 
         // TODO: are we missing direction set here?
         this.io_pin.set_function(.pio0);
+        this.io_pin.set_output_disabled(false);
         this.io_pin.set_pull(.disabled);
         this.io_pin.set_schmitt_trigger(.enabled);
 
@@ -149,6 +168,7 @@ const Cyw43PioSpi = struct {
 
         // TODO: are we missing direction set here?
         this.clk_pin.set_function(.pio0);
+        this.clk_pin.set_output_disabled(false);
         this.clk_pin.set_drive_strength(.@"12mA");
         this.clk_pin.set_slew_rate(.fast);
 
@@ -175,7 +195,7 @@ const Cyw43PioSpi = struct {
         this.pio.sm_set_pin(this.sm, @truncate(@intFromEnum(this.io_pin)), 1, 0);
     }
 
-    fn cmd_read(selfopaque: *anyopaque, cmd: u32, buffer: []u32) u32 {
+    pub fn cmd_read(selfopaque: *anyopaque, cmd: u32, buffer: []u32) u32 {
         const this: *Self = @ptrCast(@alignCast(selfopaque));
         this.cs_pin.put(0);
         this.pio.sm_set_enabled(this.sm, false);
@@ -190,7 +210,7 @@ const Cyw43PioSpi = struct {
 
         this.pio.sm_set_enabled(this.sm, true);
 
-        const dma = rp2xxx.dma.channel(1);
+        const dma = rp2xxx.dma.channel(2);
 
         const cmd_data = std.mem.asBytes(&cmd);
         dma.trigger_transfer(@intFromPtr(this.pio.sm_get_tx_fifo(this.sm)), @intFromPtr(cmd_data.ptr), 1, .{ .data_size = .size_32, .enable = true, .read_increment = true, .write_increment = false, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm)) });
@@ -199,7 +219,38 @@ const Cyw43PioSpi = struct {
         while (dma.is_busy()) {}
         var status: u32 = 0;
         const status_data = std.mem.asBytes(&status);
-        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(status_data.ptr), buffer.len, .{ .data_size = .size_32, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(status_data.ptr), 1, .{ .data_size = .size_32, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
+        while (dma.is_busy()) {}
+
+        this.cs_pin.put(1);
+        return status;
+    }
+
+    pub fn cmd_read2(this: *Self, cmd: u32, buffer: []u32) u32 {
+        //const this: *Self = @ptrCast(@alignCast(selfopaque));
+        this.cs_pin.put(0);
+        this.pio.sm_set_enabled(this.sm, false);
+
+        const write_bits = 31;
+        const read_bits = buffer.len * 32 + 32 - 1;
+
+        this.pio.sm_exec_set_y(this.sm, read_bits);
+        this.pio.sm_exec_set_x(this.sm, write_bits);
+        this.pio.sm_exec_set_pindir(this.sm, 0b1);
+        this.pio.sm_exec_jmp(this.sm, cw49spi_program.wrap_target.?);
+
+        this.pio.sm_set_enabled(this.sm, true);
+
+        const dma = rp2xxx.dma.channel(2);
+
+        const cmd_data = std.mem.asBytes(&cmd);
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_tx_fifo(this.sm)), @intFromPtr(cmd_data.ptr), 1, .{ .data_size = .size_32, .enable = true, .read_increment = true, .write_increment = false, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm)) });
+        while (dma.is_busy()) {}
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(buffer.ptr), buffer.len, .{ .data_size = .size_32, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
+        while (dma.is_busy()) {}
+        var status: u32 = 0;
+        const status_data = std.mem.asBytes(&status);
+        dma.trigger_transfer(@intFromPtr(this.pio.sm_get_rx_fifo(this.sm)), @intFromPtr(status_data.ptr), 1, .{ .data_size = .size_32, .enable = true, .read_increment = false, .write_increment = true, .dreq = @enumFromInt(@intFromEnum(this.pio) * @as(u6, 8) + @intFromEnum(this.sm) + 4) });
         while (dma.is_busy()) {}
 
         this.cs_pin.put(1);
@@ -258,3 +309,34 @@ const SpiBusCyw43 = struct {
 };
 
 const WifiDevice = struct {};
+
+
+
+/// Command type
+pub const CmdType = enum(u1) {
+    read = 0,    // Read operation
+    write = 1,   // Write operation
+};
+
+/// Increment mode
+pub const IncrMode = enum(u1) {
+    fixed = 0,       // Fixed address (no increment)
+    incremental = 1, // Incremental burst
+};
+
+/// Function type
+pub const FuncType = enum(u2) {
+    bus = 0,
+    backplane = 1,
+    wlan = 2,
+    bt = 3
+};
+
+/// CYW43 Command Word (32-bit)
+pub const CYW43Cmd = packed struct(u32) {
+    len: u11, 
+    addr: u17,
+    func: FuncType = .bus,
+    incr: IncrMode = .fixed,
+    cmd: CmdType,
+};
