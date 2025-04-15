@@ -36,13 +36,13 @@ pub const microzig_options = microzig.Options{
 // Communicate with another RP2040 over spi
 pub fn main() !void {
     // Set pin functions for CS, SCK, RX
-    const csn = rp2xxx.gpio.num(29);
-    const tx = rp2xxx.gpio.num(24);
-    const rx = rp2xxx.gpio.num(24);
-    const sck = rp2xxx.gpio.num(25);
-    inline for (&.{ csn, tx, rx, sck }) |pin| {
-        pin.set_function(.spi);
-    }
+    //const csn = rp2xxx.gpio.num(29);
+    //const tx = rp2xxx.gpio.num(24);
+    //const rx = rp2xxx.gpio.num(24);
+    //const sck = rp2xxx.gpio.num(25);
+    //inline for (&.{ csn, tx, rx, sck }) |pin| {
+    //    pin.set_function(.spi);
+    //}
 
     uart_tx_pin.set_function(.uart);
 
@@ -53,16 +53,25 @@ pub fn main() !void {
 
     rp2xxx.uart.init_logger(uart);
 
-    //const spi1 = rp2xxx.spi.instance.SPI1;
-    //try spi1.apply(.{ .clock_config = rp2xxx.clock_config });
+    // STEP1: PWR and CS PINs initalization
+    // Inicjalizacja pinow: https://github.com/embassy-rs/embassy/blob/main/examples/rp235x/src/bin/blinky_wifi.rs
+    // Uwaga1: Pod innym linkiem inicjalizuja pull pina na .up: https://github.com/raspberrypi/pico-sdk/blob/ee68c78d0afae2b69c03ae1a72bf5cc267a2d94c/src/rp2_common/pico_cyw43_driver/cyw43_bus_pio_spi.c#L343
+    // Uwaga2: Tutaj ustawiaja jeszcze pozostale piny ale to stary przyklad: https://github.com/embassy-rs/cyw43/blob/e33b99e9ec9902d6f93582530fd9cfe38953ce69/examples/rpi-pico-w/src/main.rs
+    const pwr_pin = rp2xxx.gpio.num(23);
+    pwr_pin.set_function(.sio);        // ustawienie funkcji ustawia IE na true (kod w gpio)
+    pwr_pin.put(0);
+    pwr_pin.set_direction(.out);
 
-    //var spi_device: SPI_Device = SPI_Device.init(spi1, rp2xxx.gpio.num(25), .{ .active_level = .low });
-    //try spi_device.connect();
+    const cs_pin = rp2xxx.gpio.num(25);
+    cs_pin.set_function(.sio);         // ustawienie funkcji ustawia IE na true (kod w gpio)
+    cs_pin.put(1);
+    cs_pin.set_direction(.out);
 
-    //var spi_cyw43: SpiBusCyw43 = SpiBusCyw43.init(&spi_device);
     var spi_cyw43: Cyw43PioSpi = .{};
     spi_cyw43.init();
-    var power_pin: GPIO_Device = GPIO_Device.init(rp2xxx.gpio.num(23));
+
+    // From: https://github.com/raspberrypi/pico-sdk/blob/ee68c78d0afae2b69c03ae1a72bf5cc267a2d94c/src/rp2_common/pico_cyw43_driver/cyw43_bus_pio_spi.c#L343 line 344
+    var power_pin: GPIO_Device = GPIO_Device.init(pwr_pin);
     var wifi_bus = wifi.Bus.init(power_pin.digital_io(), spi_cyw43.spi_bus_cyw43(), sleep);
 
     var i: u32 = 0;
@@ -99,6 +108,10 @@ const Cyw43PioSpi = struct {
             \\jmp x-- lp     side 1
             \\
             \\; switch directions
+            \\set pindirs, 0 side 0
+            \\nop            side 0
+            \\
+            \\; read in y-1 bits
             \\lp2:
             \\in pins, 1     side 1
             \\jmp y-- lp2    side 0
@@ -112,6 +125,11 @@ const Cyw43PioSpi = struct {
     };
 
     pub fn init(this: *Self) void {
+        // make pio pin
+        //pin.pad_ctrl().write(|w| w.set_od(false));  tego brakuje
+        //pin.pad_ctrl().write(|w| w.set_ie(true));   tego brakuje
+
+        // TODO: are we missing direction set here?
         this.io_pin.set_function(.pio0);
         this.io_pin.set_pull(.disabled);
         this.io_pin.set_schmitt_trigger(.enabled);
@@ -120,11 +138,16 @@ const Cyw43PioSpi = struct {
         const mask = @as(u32, 1) << @truncate(@intFromEnum(this.io_pin));
         var val = this.pio.get_regs().INPUT_SYNC_BYPASS.raw;
         val |= mask;
-        this.pio.get_regs().INPUT_SYNC_BYPASS.raw = val;
+        this.pio.get_regs().INPUT_SYNC_BYPASS.write_raw(val);
 
         this.io_pin.set_drive_strength(.@"12mA");
         this.io_pin.set_slew_rate(.fast);
 
+        // make pio pin
+        //pin.pad_ctrl().write(|w| w.set_od(false));  tego brakuje ale chyba nasz set_function to robi
+        //pin.pad_ctrl().write(|w| w.set_ie(true));   tego brakuje
+
+        // TODO: are we missing direction set here?
         this.clk_pin.set_function(.pio0);
         this.clk_pin.set_drive_strength(.@"12mA");
         this.clk_pin.set_slew_rate(.fast);

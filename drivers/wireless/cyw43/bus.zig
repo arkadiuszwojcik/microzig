@@ -43,11 +43,11 @@ pub const FuncType = enum(u2) {
 
 /// CYW43 Command Word (32-bit)
 pub const CYW43Cmd = packed struct(u32) {
-    cmd: CmdType,
-    incr: IncrMode = .fixed,
-    func: FuncType = .bus,
-    addr: u17,
     len: u11, 
+    addr: u17,
+    func: FuncType = .bus,
+    incr: IncrMode = .fixed,
+    cmd: CmdType,
 };
 
 const TEST_PATTERN: u32 = 0x12345678;
