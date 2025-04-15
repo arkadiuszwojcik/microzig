@@ -1,3 +1,7 @@
+///
+/// based on: https://github.com/embassy-rs/embassy/blob/main/cyw43-pio/src/lib.rs
+///
+
 const std = @import("std");
 const microzig = @import("microzig");
 const SPI_Device = microzig.hal.drivers.SPI_Device;
@@ -107,33 +111,6 @@ const Cyw43PioSpi = struct {
         , .{}).get_program_by_name("cw49spi");
     };
 
-    const cw49spi_program_test_jump = blk: {
-        @setEvalBranchQuota(5000);
-        break :blk rp2xxx.pio.assemble(
-            \\.program cw49spi
-            \\.side_set 1
-            \\
-            \\
-            \\; write out x-1 bits
-            \\lp:
-            \\out pins, 1    side 0
-            \\jmp x-- lp     side 1
-            \\
-            \\.wrap_target
-            \\
-            \\; switch directions
-            \\lp2:
-            \\in pins, 1     side 1
-            \\jmp y-- lp2    side 0
-            \\
-            \\; wait for event and irq host
-            \\wait 1 pin 0   side 0
-            \\irq 0          side 0
-            \\
-            \\.wrap
-        , .{}).get_program_by_name("cw49spi");
-    };
-
     pub fn init(this: *Self) void {
         this.io_pin.set_function(.pio0);
         this.io_pin.set_pull(.disabled);
@@ -187,7 +164,6 @@ const Cyw43PioSpi = struct {
         this.pio.sm_exec_set_x(this.sm, write_bits);
         this.pio.sm_exec_set_pindir(this.sm, 0b1);
         this.pio.sm_exec_jmp(this.sm, cw49spi_program.wrap_target.?);
-        std.log.info("pio prog jmp {}", .{cw49spi_program_test_jump.wrap_target.?});
 
         this.pio.sm_set_enabled(this.sm, true);
 

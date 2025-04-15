@@ -73,8 +73,6 @@ pub const Bus = struct {
         try bus.pwr.write(.high);
         bus.internal_delay_ms(250);
 
-        bus.internal_delay_ms(150);
-
         const tes = bus.read32_swapped(.bus, REG_BUS_TEST_RO);
         std.log.info("before while {}", .{tes});
         while (true) {
@@ -97,7 +95,8 @@ pub const Bus = struct {
         const cmd_swapped = swap16(@bitCast(cmd));
 
         var buff = [1]u32{0};
-        _ = bus.spi_bus.cmd_read(cmd_swapped, &buff);
+        const op_stat = bus.spi_bus.cmd_read(cmd_swapped, &buff);
+        std.log.info("cmd_read status: 0x{X}", .{op_stat});
 
         const status = swap16(buff[0]);
         // TODO: Rust code don't use swap for bus.status
