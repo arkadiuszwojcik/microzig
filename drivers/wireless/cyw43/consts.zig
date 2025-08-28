@@ -106,6 +106,10 @@ pub const IRQ_F1_INTR: u16 = 0x2000;
 pub const IRQ_F2_INTR: u16 = 0x4000;
 pub const IRQ_F3_INTR: u16 = 0x8000;
 
+pub const CHANNEL_TYPE_CONTROL: u8 = 0;
+pub const CHANNEL_TYPE_EVENT: u8 = 1;
+pub const CHANNEL_TYPE_DATA: u8 = 2;
+
 // Bluetooth constants.
 pub const SPI_RESP_DELAY_F1: u32 = 0x001d;
 pub const WHD_BUS_SPI_BACKPLANE_READ_PADD_SIZE: u8 = 4;

@@ -2,6 +2,7 @@ const std = @import("std");
 const bus = @import("bus.zig");
 const consts = @import("consts.zig");
 const nvram = @import("nvram.zig");
+const ioctl = @import("ioctl.zig");
 
 /// Callback for microsecond delays
 pub const delayus_callback = fn (delay: u32) void;
@@ -14,6 +15,9 @@ pub const Cyw43_Runner = struct {
 
     bus: *bus.Cyw43_Bus,
     internal_delay_ms: *const delayus_callback,
+
+    sdpcm_seq: u8 = 0,
+    sdpcm_seq_max: u8 = 1,
 
     pub fn init(self: *Self) !void {
         try self.bus.init_bus();
@@ -102,6 +106,98 @@ pub const Cyw43_Runner = struct {
         // TODO: bluetooth setup
 
         log.debug("cyw43 runner init done", .{});
+    }
+
+    fn update_credit(self: *Self, sdpcm_header: *SdpcmHeader) void {
+        if (sdpcm_header.channel_and_flags & 0xf < 3) {
+            var sdpcm_seq_max = sdpcm_header.bus_data_credit;
+            if (sdpcm_seq_max -% self.sdpcm_seq > 0x40) {
+                sdpcm_seq_max = self.sdpcm_seq + 2;
+            }
+            self.sdpcm_seq_max = sdpcm_seq_max;
+        }
+    }
+
+    fn has_credit(self: *Self) bool {
+        return self.sdpcm_seq != self.sdpcm_seq_max and (self.sdpcm_seq_max -% self.sdpcm_seq) & 0x80 == 0;
+    }
+
+    fn send_ioctl(self: *Self, ioctl_packet: ioctl.PendingIoctl, buf: *[512]u32) void {
+        var buf8 = std.mem.sliceAsBytes(buf);
+        const total_len = @sizeOf(SdpcmHeader) + @sizeOf(CdcHeader) + ioctl_packet.data.len();
+
+        const sdpcm_seq = self.sdpcm_seq;
+        self.sdpcm_seq +%= 1;
+        self.ioctl_id +%= 1;
+
+        const sdpcm_header = SdpcmHeader{
+            .len = @truncate(total_len),
+            .len_inv = @truncate(~total_len),
+            .sequence = sdpcm_seq,
+            .channel_and_flags = consts.CHANNEL_TYPE_CONTROL,
+            .next_length = 0,
+            .header_length = @sizeOf(SdpcmHeader),
+            .wireless_flow_control = 0,
+            .bus_data_credit = 0,
+            .reserved = 0,
+        };
+
+        const cdc_header = CdcHeader{
+            .cmd = ioctl_packet.cmd,
+            .len = ioctl_packet.data.len(),
+            .flags = @as(u16, @intFromEnum(ioctl_packet.kind)) | @as(u16, ioctl_packet.iface) << 12,
+            .id = self.ioctl_id,
+            .status = 0,
+        };
+
+        @memcpy(buf8[0..@sizeOf(SdpcmHeader)], std.mem.asBytes(&sdpcm_header));
+        @memcpy(buf8[@sizeOf(SdpcmHeader) .. @sizeOf(SdpcmHeader) + @sizeOf(CdcHeader)], std.mem.asBytes(&cdc_header));
+        @memcpy(buf8[@sizeOf(SdpcmHeader) + @sizeOf(CdcHeader) .. total_len], ioctl_packet.data);
+
+        const total_len_rounded = (total_len + 3) & ~3; // round up to 4byte
+
+        self.bus.wlan_write(&buf[0 .. total_len_rounded / 4]);
+    }
+
+    fn check_status(self: *Self, buf: *[512]u32) void {
+        while (true) {
+            const status = self.bus.get_status();
+
+            if (status & consts.STATUS_F2_PKT_AVAILABLE != 0) {
+                const len = (status & consts.STATUS_F2_PKT_LEN_MASK) >> consts.STATUS_F2_PKT_LEN_SHIFT;
+                self.bus.wlan_read(buf, len);
+                self.rx(buf[0..len]);
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn rx(self: *Self, buf: []u8) void {
+        const sdpcm_header, const sdpcm_payload = SdpcmHeader.parse(buf) catch {
+            return;
+        };
+
+        self.update_credit(sdpcm_header);
+
+        const channel = sdpcm_header.channel_and_flags & 0x0f;
+
+        switch (channel) {
+            consts.CHANNEL_TYPE_CONTROL => {
+                const cdc_header, const cdc_payload = CdcHeader.parse(sdpcm_payload) catch {
+                    return;
+                };
+                if (cdc_header.id == self.ioctl_id) {
+                    if (cdc_header.status != 0) {
+                        // TODO: propagate error instead
+                        @panic("IOCTL error");
+                    }
+
+                    self.ioctl_state.ioctl_done(cdc_payload);
+                }
+            },
+            else => {},
+        }
     }
 
     fn core_disable(self: *Self, core: Core) void {
@@ -209,8 +305,18 @@ pub const Cyw43_Runner = struct {
     }
 
     pub fn run(self: *Self) void {
+        var buf: [512]u32 = undefined;
+
         while (true) {
             self.log_read();
+
+            if (self.has_credit()) {
+                // TODO TODO
+                self.send_ioctl(&buf);
+                self.check_status(&buf);
+            } else {
+                // TODO
+            }
         }
     }
 };
@@ -304,4 +410,72 @@ pub const SharedMemLog = extern struct {
     buf_size: u32,
     idx: u32,
     out_idx: u32,
+};
+
+const SdpcmParsingError = error{ PacketTooShort, LengthInverseMismatch, PacketLengthMismatch };
+
+pub const SdpcmHeader = extern struct {
+    len: u16,
+    len_inv: u16,
+    /// Rx/Tx sequence number
+    sequence: u8,
+    ///  4 MSB Channel number, 4 LSB arbitrary flag
+    channel_and_flags: u8,
+    /// Length of next data frame, reserved for Tx
+    next_length: u8,
+    /// Data offset
+    header_length: u8,
+    /// Flow control bits, reserved for Tx
+    wireless_flow_control: u8,
+    /// Maximum Sequence number allowed by firmware for Tx
+    bus_data_credit: u8,
+    /// Reserved
+    reserved: u16,
+
+    const SdpcmPacket = std.meta.Tuple(&.{ *const SdpcmHeader, []const u8 });
+
+    pub fn parse(raw_packet: []const u8) SdpcmParsingError!SdpcmPacket {
+        const packet_len = raw_packet.len;
+        if (packet_len < @sizeOf(@This())) {
+            return .PacketTooShort;
+        }
+        const raw_header = raw_packet[0..@sizeOf(@This())];
+        const raw_data = raw_packet[@sizeOf(@This())..];
+
+        const header = @as(SdpcmHeader, @bitCast(raw_header));
+        if (header.len != ~header.len_inv) {
+            return .LengthInverseMismatch;
+        }
+
+        if (header.len != packet_len) {
+            return .PacketLengthMismatch;
+        }
+
+        return .{ &header, raw_data[header.header_length - @sizeOf(@This()) ..] };
+    }
+};
+
+const CdcParsingError = error{PacketTooShort};
+
+pub const CdcHeader = extern struct {
+    cmd: u32,
+    len: u32,
+    flags: u16,
+    id: u16,
+    status: u32,
+
+    const CdcPacket = std.meta.Tuple(&.{ *const CdcHeader, []const u8 });
+
+    pub fn parse(raw_packet: []const u8) CdcParsingError!CdcPacket {
+        const packet_len = raw_packet.len;
+        if (packet_len < @sizeOf(@This())) {
+            return .PacketTooShort;
+        }
+        const raw_header = raw_packet[0..@sizeOf(@This())];
+        const raw_data = raw_packet[@sizeOf(@This())..];
+
+        const header = @as(CdcHeader, @bitCast(raw_header));
+
+        return .{ &header, raw_data[0..header.len] };
+    }
 };

@@ -38,6 +38,11 @@ pub const Cyw43_Bus = struct {
     spi: *Cyw43_Spi,
     internal_delay_ms: *const delayus_callback,
     backplane_window: u32 = 0xAAAA_AAAA,
+    status: u32 = 0,
+
+    pub fn get_status(self: *Self) u32 {
+        return self.status;
+    }
 
     pub fn init_bus(self: *Self) !void {
         // Init sequence
@@ -121,6 +126,33 @@ pub const Cyw43_Bus = struct {
         self.write16(.bus, consts.REG_BUS_INTERRUPT_ENABLE, val);
     }
 
+    pub fn wlan_read(self: *Self, buff: []u32, len_in_u8: u32) void {
+        const cmd = Cyw43Cmd{ .cmd = .read, .incr = .incremental, .func = .wlan, .addr = 0, .len = len_in_u8 };
+        const len_in_u32 = (len_in_u8 + 3) / 4;
+
+        self.status = self.spi.spi_read_blocking(@bitCast(cmd), buff[0..len_in_u32]);
+    }
+
+    /// In the Rust version of this driver, this function requires an extra temporary buffer, so we will not use it.
+    pub fn wlan_write_copy_safe_slow(self: *Self, buff: []u32) void {
+        const cmd = Cyw43Cmd{ .cmd = .write, .incr = .incremental, .func = .wlan, .addr = 0, .len = buff.len * 4 };
+
+        var cmd_buff: [513]u32 = undefined;
+        cmd_buff[0] = @bitCast(cmd);
+        @memcpy(cmd_buff[1 .. buff.len + 1], buff);
+
+        self.status = self.spi.spi_write_blocking(cmd_buff[0 .. buff.len + 1]);
+    }
+
+    /// This function assumes the first buffer element is reserved for internal bus usage.
+    pub fn wlan_write_nocopy_unsafe_fast(self: *Self, extended_buff: []u32, buff_data_len: u32) void {
+        std.debug.assert(buff_data_len == extended_buff.len - 1);
+        const cmd = Cyw43Cmd{ .cmd = .write, .incr = .incremental, .func = .wlan, .addr = 0, .len = buff_data_len * 4 };
+        extended_buff[0] = @bitCast(cmd);
+
+        self.status = self.spi.spi_write_blocking(extended_buff);
+    }
+
     pub inline fn read8(self: *Self, func: FuncType, addr: u17) u8 {
         return @truncate(self.readn(func, addr, 1));
     }
@@ -139,7 +171,7 @@ pub const Cyw43_Bus = struct {
         // if we are reading from the backplane, we need an extra word for the response delay
         const buff_len: usize = if (func == .backplane) 2 else 1;
 
-        _ = self.spi.spi_read_blocking(@bitCast(cmd), buff[0..buff_len]);
+        self.status = self.spi.spi_read_blocking(@bitCast(cmd), buff[0..buff_len]);
 
         return if (func == .backplane) buff[1] else buff[0];
     }
@@ -159,7 +191,7 @@ pub const Cyw43_Bus = struct {
     fn writen(self: *Self, func: FuncType, addr: u17, value: u32, len: u11) void {
         const cmd = Cyw43Cmd{ .cmd = .write, .incr = .incremental, .func = func, .addr = addr, .len = len };
 
-        _ = self.spi.spi_write_blocking(&[_]u32{ @bitCast(cmd), value });
+        self.status = self.spi.spi_write_blocking(&[_]u32{ @bitCast(cmd), value });
     }
 
     pub fn bp_read(self: *Self, addr: u32, data: []u8) void {
@@ -188,7 +220,7 @@ pub const Cyw43_Bus = struct {
 
             // round `buf` to word boundary, add one extra word for the response delay
             const words_to_send = (len + 3) / 4 + 1;
-            _ = self.spi.spi_read_blocking(@bitCast(cmd), buf[0..words_to_send]);
+            self.status = self.spi.spi_read_blocking(@bitCast(cmd), buf[0..words_to_send]);
 
             const u32_data_slice = buf[1..];
             var u8_buf_view = std.mem.sliceAsBytes(u32_data_slice);
@@ -260,7 +292,7 @@ pub const Cyw43_Bus = struct {
             buf[0] = @bitCast(cmd);
 
             const words_to_send = (len + 3) / 4 + 1;
-            _ = self.spi.spi_write_blocking(buf[0..words_to_send]);
+            self.status = self.spi.spi_write_blocking(buf[0..words_to_send]);
 
             current_addr += @as(u32, @intCast(len));
             remaining_data = remaining_data[len..];
@@ -313,7 +345,7 @@ pub const Cyw43_Bus = struct {
         const cmd_swapped = swap16(@bitCast(cmd));
 
         var buff = [1]u32{0};
-        _ = self.spi.spi_read_blocking(cmd_swapped, &buff);
+        self.status = self.spi.spi_read_blocking(cmd_swapped, &buff);
 
         return swap16(buff[0]);
     }
@@ -322,7 +354,7 @@ pub const Cyw43_Bus = struct {
         const cmd = Cyw43Cmd{ .cmd = .write, .incr = .incremental, .func = func, .addr = addr, .len = 4 };
 
         var buff: [2]u32 = .{ swap16(@bitCast(cmd)), swap16(value) };
-        _ = self.spi.spi_write_blocking(&buff);
+        self.status = self.spi.spi_write_blocking(&buff);
     }
 
     inline fn swap16(x: u32) u32 {
