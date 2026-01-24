@@ -6,6 +6,14 @@ const FreeRTOSPort = enum {
     RP2350_RISCV,
 };
 
+const HeapAllocType = enum {
+    HEAP_1,
+    HEAP_2,
+    HEAP_3,
+    HEAP_4,
+    HEAP_5,
+};
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -20,6 +28,12 @@ pub fn build(b: *std.Build) void {
     if (port_name != .RP2040 and port_name != .RP2350_ARM) {
         @panic("Right now only RP2040 and RP2350_ARM ports are supported");
     }
+
+    const heap_alloc_type = b.option(
+        HeapAllocType,
+        "heap_alloc_type",
+        "FreeRTOS heap allocation scheme to use",
+    ) orelse .HEAP_1;
 
     const foundationlibc_dep = b.dependency("foundationlibc", .{
         .target = target,
@@ -42,6 +56,13 @@ pub fn build(b: *std.Build) void {
     freertos_lib.addCSourceFiles(.{
         .root = freertos_kernel_dep.path("."),
         .files = &files,
+        .flags = &flags,
+    });
+
+    // Add FreeRTOS heap management source file
+    freertos_lib.addCSourceFiles(.{
+        .root = freertos_kernel_dep.path("."),
+        .files = &[_][]const u8{getAllocatorFile(heap_alloc_type)},
         .flags = &flags,
     });
 
@@ -113,6 +134,16 @@ pub fn build(b: *std.Build) void {
     }
 }
 
+fn getAllocatorFile(heap_type: HeapAllocType) []const u8 {
+    return switch (heap_type) {
+        .HEAP_1 => "portable/MemMang/heap_1.c",
+        .HEAP_2 => "portable/MemMang/heap_2.c",
+        .HEAP_3 => "portable/MemMang/heap_3.c",
+        .HEAP_4 => "portable/MemMang/heap_4.c",
+        .HEAP_5 => "portable/MemMang/heap_5.c",
+    };
+}
+
 const flags = [_][]const u8{ "-std=c11", "-fno-sanitize=undefined", "-Wno-pointer-to-int-cast" };
 const files = [_][]const u8{
     "croutine.c",
@@ -122,7 +153,6 @@ const files = [_][]const u8{
     "stream_buffer.c",
     "tasks.c",
     "timers.c",
-    "portable/MemMang/heap_1.c",
 };
 
 const Chip = enum {
