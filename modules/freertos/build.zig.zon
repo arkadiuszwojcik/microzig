@@ -23,5 +23,5 @@
             .hash = "translate_c-0.0.0-Q_BUWoROBwAyokT5SJSw4YIrwdLd1w53i-pEYwBDqXZt",
         },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "src", "config", "include", "translate_c_shims" },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "config", "include", "translate_c_shims", "port_shims" },
 }

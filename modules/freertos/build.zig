@@ -92,11 +92,21 @@ pub fn build(b: *std.Build) void {
         freertos_lib.addIncludePath(freertos_kernel_community_dep.path("./GCC/RP2350_ARM_NTZ/non_secure/"));
     }
 
-    // Pico SDK glue code: partial re-implementations of SDK functions that
-    // the FreeRTOS port references but MicroZig does not provide.
+    // Port shims: partial re-implementations of Pico SDK functions that the
+    // FreeRTOS port references but MicroZig does not provide.
+    const shims_root = "port_shims/raspberrypi";
+    const port_shim_file = switch (port_name) {
+        .RP2040 => shims_root ++ "/rp2040/rp2040_arm/port_shim.c",
+        .RP2350_ARM => shims_root ++ "/rp2350/rp2350_arm_ntz/port_shim.c",
+        .RP2350_RISCV => unreachable,
+    };
     freertos_lib.addCSourceFiles(.{
         .root = b.path("."),
-        .files = &[_][]const u8{ "src/picosdk_irq.c", "src/picosdk_exception.c", "src/picosdk_stubs.c" },
+        .files = &[_][]const u8{
+            shims_root ++ "/picosdk/picosdk_irq.c",
+            shims_root ++ "/picosdk/picosdk_exception.c",
+            port_shim_file,
+        },
         .flags = &flags,
     });
 
